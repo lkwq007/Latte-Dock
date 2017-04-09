@@ -90,11 +90,19 @@ MouseArea{
 
     readonly property var m: model
     property string modelLauncherUrl: (LauncherUrlWithoutIcon !== null) ? LauncherUrlWithoutIcon : ""
+    property string modelLauncherUrlWithIcon: (LauncherUrl !== null) ? LauncherUrl : ""
     property string launcherUrl: ""
+    property string launcherUrlWithIcon: ""
 
     onModelLauncherUrlChanged: {
         if (modelLauncherUrl !== "")
             launcherUrl = modelLauncherUrl;
+    }
+
+    onModelLauncherUrlWithIconChanged: {
+        if (modelLauncherUrlWithIcon !== ""){
+            launcherUrlWithIcon = modelLauncherUrlWithIcon;
+        }
     }
 
     property QtObject contextMenu: null
@@ -688,7 +696,15 @@ MouseArea{
                 draggingResistaner = resistanerTimerComponent.createObject(mainItemContainer);
         }
         else if (mouse.button == Qt.RightButton && !modAccepted){
-            root.createContextMenu(mainItemContainer).show();
+            // When we're a launcher, there's no window controls, so we can show all
+            // places without the menu getting super huge.
+            if (model.IsLauncher === true) {
+                showContextMenu({showAllPlaces: true})
+            } else {
+                showContextMenu();
+            }
+
+            //root.createContextMenu(mainItemContainer).show();
         }
 
         if (hoveredTimerObj){
@@ -934,6 +950,11 @@ MouseArea{
         return tasksModel.makeModelIndex(index);
     }
 
+    function showContextMenu(args) {
+        contextMenu = root.createContextMenu(mainItemContainer, modelIndex(), args);
+        contextMenu.show();
+    }
+
     function modifierAccepted(mouse){
         if (mouse.modifiers & root.modifierQt){
             if ((mouse.button === Qt.LeftButton && root.modifierClick === Latte.Dock.LeftClick)
@@ -963,13 +984,14 @@ MouseArea{
         }
     }
 
+    ///REMOVE
     //fix wrong positioning of launchers....
     onActivityChanged:{
-        for(var i=0; i<tasksModel.launcherList.length; ++i){
+        /*for(var i=0; i<tasksModel.launcherList.length; ++i){
             if ((tasksModel.launcherList[i] == LauncherUrlWithoutIcon) && (i != index)){
                 updatePosition.restart();
             }
-        }
+        }*/
     }
 
     ///// End of Helper functions ////
@@ -981,12 +1003,13 @@ MouseArea{
         root.publishTasksGeometries.connect(slotPublishGeometries);
         root.showPreviewForTasks.connect(slotShowPreviewForTasks);
 
+        ///REMOVE
         //fix wrong positioning of launchers....
-        for(var i=0; i<tasksModel.launcherList.length; ++i){
+        /*for(var i=0; i<tasksModel.launcherList.length; ++i){
             if ((tasksModel.launcherList[i] == LauncherUrlWithoutIcon) && (i != index)){
                 updatePosition.restart();
             }
-        }
+        }*/
 
         showWindowAnimation.showWindow();
     }
@@ -995,18 +1018,19 @@ MouseArea{
         wrapper.sendEndOfNeedBothAxisAnimation();
     }
 
+    ///REMOVE
     Timer{
         id:updatePosition
         interval: 800
 
         onTriggered: {
-            for(var i=0; i<tasksModel.launcherList.length; ++i){
+            /*for(var i=0; i<tasksModel.launcherList.length; ++i){
                 if ((tasksModel.launcherList[i] == LauncherUrlWithoutIcon) && (i != index)){
                     //   console.log("Launch List:"+tasksModel.launcherList);
                     //    console.log("Move from timer "+AppId+" - from:"+ index + " to:" + i + " - total:"+tasksModel.count);
                     tasksModel.move(index, i);
                 }
-            }
+            }*/
         }
     }
 
@@ -1076,9 +1100,14 @@ MouseArea{
         function execute(){
             //Animation Add/Remove (2) - when is window with no launcher, animations enabled
             //Animation Add/Remove (3) - when is launcher with no window, animations enabled
-            if (( (!root.launcherExists(mainItemContainer.launcherUrl) && mainItemContainer.isWindow)
-                 || ( (!root.taskExists(mainItemContainer.launcherUrl) && mainItemContainer.isLauncher)))
-                    && (root.durationTime !== 0)){
+            var animation2 = ((((tasksModel.launcherPosition(mainItemContainer.launcherUrl) == -1)
+                                && (tasksModel.launcherPosition(mainItemContainer.launcherUrlWithIcon) == -1) )
+                                  || !launcherIsPresent(mainItemContainer.launcherUrl))
+                                && mainItemContainer.isWindow);
+
+            var animation3 = ((!root.taskExists(mainItemContainer.launcherUrl) && mainItemContainer.isLauncher));
+
+            if (( animation2 || animation3) && (root.durationTime !== 0)){
                 wrapper.tempScaleWidth = 0;
                 wrapper.tempScaleHeight = 0;
                 start();
@@ -1224,6 +1253,17 @@ MouseArea{
         }
     }
 
+    function launcherIsPresent(url) {
+        var activities = tasksModel.launcherActivities(url);
+
+        var NULL_UUID = "00000000-0000-0000-0000-000000000000";
+
+        if (activities.indexOf(NULL_UUID) !== -1 || activities.indexOf(activityInfo.currentActivity) !== -1)
+            return true;
+
+        return false;
+    }
+
     ///Item's Removal Animation
     ListView.onRemove: SequentialAnimation {
         id: taskRealRemovalAnimation
@@ -1231,9 +1271,15 @@ MouseArea{
 
         //Animation Add/Remove (1) - when is window with no launcher, animations enabled
         //Animation Add/Remove (4) - the user removes a launcher, animation enabled
-        property bool enabledAnimation: ((!root.launcherExists(mainItemContainer.launcherUrl) && mainItemContainer.isWindow)
-                                         ||(mainItemContainer.launcherUrl===root.launcherForRemoval && mainItemContainer.isLauncher))
-                                        && (root.durationTime !== 0);
+        property bool animation1: ((((tasksModel.launcherPosition(mainItemContainer.launcherUrl) == -1)
+                                     && (tasksModel.launcherPosition(mainItemContainer.launcherUrlWithIcon) == -1) )
+                                       || !launcherIsPresent(mainItemContainer.launcherUrl))
+                                      && mainItemContainer.isWindow)
+
+        property bool animation4: ((mainItemContainer.launcherUrl===root.launcherForRemoval
+                                    || mainItemContainer.launcherUrlWithIcon===root.launcherForRemoval )&& mainItemContainer.isLauncher)
+
+        property bool enabledAnimation: (animation1 || animation4) && (root.durationTime !== 0);
 
         ScriptAction{
             script:{
