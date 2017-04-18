@@ -46,10 +46,17 @@ PlasmaCore.FrameSvgItem {
 
     property bool panelIsVertical: plasmoid.formFactor === PlasmaCore.Types.Vertical
 
-    FontLoader {
-        id: tangerineFont
-        name: "Tangerine"
-        source: "../fonts/tangerine.ttf"
+    readonly property string tangerineFont: tangerineFontLoader.status === Loader.Ready ? tangerineFontLoader.item.name : ""
+
+    Loader {
+        id: tangerineFontLoader
+
+        sourceComponent: Component {
+            FontLoader {
+                name: "Tangerine"
+                source: "../fonts/tangerine.ttf"
+            }
+        }
     }
 
     PlasmaComponents.ToolButton {
@@ -130,7 +137,7 @@ PlasmaCore.FrameSvgItem {
                     height: logo.height
                     verticalAlignment: Text.AlignVCenter
                     text: "atte"
-                    font.family: tangerineFont.name
+                    font.family: tangerineFont
                     font.pointSize: 2 * theme.defaultFont.pointSize
                     font.italic: true
 
@@ -293,7 +300,10 @@ PlasmaCore.FrameSvgItem {
                 text: i18n("Quit")
                 iconSource: "window-close"
 
-                onClicked: dock.closeApplication()
+                onClicked: {
+                    tangerineFontLoader.sourceComponent = undefined
+                    dock.closeApplication()
+                }
             }
         }
     }
